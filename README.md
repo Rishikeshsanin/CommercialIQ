@@ -7,7 +7,7 @@
 
 CommercialIQ is an end-to-end applied-AI portfolio project that turns commercial data into forecasts, customer segments, risk signals, grounded knowledge answers, and actionable decision support. It is designed around the complete AI lifecycle: **data preparation → feature engineering → model training → validation → explainability → agentic analytics → deployment**.
 
-> The public demo uses synthetic commercial data only. It is not a clinical or medical decision system.
+> The public demo and database contain synthetic commercial data only. CommercialIQ is not a clinical or medical decision system.
 
 ## Core capabilities
 
@@ -15,12 +15,38 @@ CommercialIQ is an end-to-end applied-AI portfolio project that turns commercial
 - **Demand forecasting** — time-aware regression workflow with confidence-aware recommendations
 - **Segmentation** — RFM feature engineering + K-Means customer clusters
 - **Commercial analytics** — revenue, regions, products, anomalies and inventory signals
-- **RAG-style grounding** — ranked business-document retrieval with page-level sources
+- **RAG-style grounding** — ranked business-document retrieval with sources
 - **AI agent** — tool routing across forecasting, segmentation, risk, anomaly and retrieval tools
 - **Optional Generative AI** — grounded Gemini augmentation with deterministic fallback
 - **SQL/PostgreSQL** — normalized, indexed, RLS-enabled commercial schema
 - **Model validation** — MAE, RMSE, R², precision, recall, F1, ROC-AUC and silhouette score
-- **Deployment-ready UI** — responsive React/Vite application and Vercel serverless API
+- **Deployment-ready UI** — responsive React/Vite application and Vercel serverless APIs
+
+## Project Hub database
+
+CommercialIQ is registered as **App #4** in a shared Supabase **Project Hub**.
+
+| Item | Value |
+|---|---|
+| App number | `4` |
+| App slug | `commercialiq` |
+| Assigned schema | `commercialiq` |
+| Data classification | Portfolio / synthetic |
+| Access model | RLS + SELECT-only public demo reads |
+
+The application is isolated to `commercialiq.*`. The repository-level safety contract is defined in `AGENTS.md` and `SUPABASE_HUB_RULES.md`.
+
+The database currently contains:
+
+- 100 synthetic customers
+- 10 synthetic portfolio products
+- 1,500 synthetic commercial transactions
+- 30 forecast rows
+- 100 customer segment assignments
+- 100 predictive-risk outputs
+- 5 synthetic business-document records
+
+Every user-facing CommercialIQ table has RLS enabled. `anon` and `authenticated` receive **SELECT only**; insert, update, delete, truncate and schema-create privileges are not granted. No service-role or database-secret credential is used by the portfolio application.
 
 ## Product modules
 
@@ -36,26 +62,32 @@ CommercialIQ is an end-to-end applied-AI portfolio project that turns commercial
 ## Architecture
 
 ```text
-Commercial data
-     │
+Synthetic commercial data
+          │
+          ▼
+Supabase Project Hub — App #4
+commercialiq.* + RLS
+          │
+          ├──────────────► /api/commercial-data (read only)
+          │
 Data preparation + feature engineering
-     │
- ┌───┼───────────────┐
- ▼   ▼               ▼
-Forecasting       Segmentation       Risk model
-Regression        RFM + K-Means      Classification
- └───┬───────────────┘
-     ▼
+          │
+ ┌────────┼───────────────┐
+ ▼        ▼               ▼
+Forecasting           Segmentation         Risk model
+Regression            RFM + K-Means        Classification
+ └────────┬───────────────┘
+          ▼
 Commercial tool layer
-     │
- ┌───┴────────────────────┐
- ▼                        ▼
-Knowledge retrieval    Agent orchestration
- └──────────┬─────────────┘
-            ▼
-   Optional grounded LLM
-            ▼
-      React dashboard
+          │
+ ┌────────┴────────────────────┐
+ ▼                             ▼
+Knowledge retrieval       Agent orchestration
+ └────────────┬────────────────┘
+              ▼
+     Optional grounded LLM
+              ▼
+        React dashboard
 ```
 
 ## Tech stack
@@ -66,9 +98,23 @@ Knowledge retrieval    Agent orchestration
 | API | Vercel Serverless Functions (Node.js) |
 | ML | Python, Pandas, NumPy, Scikit-learn, Joblib |
 | Models | Linear/Logistic Regression, Random Forest, Gradient Boosting, K-Means |
-| Database | PostgreSQL-compatible schema, Supabase-ready RLS |
+| Database | Supabase PostgreSQL Project Hub, `commercialiq` schema, RLS |
 | GenAI | Optional Gemini grounding + deterministic fallback |
 | CI/CD | GitHub Actions + Vercel |
+
+## API routes
+
+### `GET /api/health`
+
+Returns application/API health and the active AI mode.
+
+### `GET /api/commercial-data`
+
+Read-only adapter for CommercialIQ's Project Hub schema. It uses the Supabase project URL and a **publishable** key only, queries `commercialiq` through the Data API, and returns aggregate metrics plus synthetic demo records. It contains no write operation and no privileged credential.
+
+### `POST /api/agent`
+
+Accepts `{ "question": "..." }`, chooses commercial-analysis tools, retrieves supporting business-document context, and returns a grounded decision brief. Gemini augmentation is optional; deterministic decision support remains available without an LLM key.
 
 ## Run locally
 
@@ -77,7 +123,11 @@ npm install
 npm run dev
 ```
 
-The UI remains functional without secrets. For local serverless API execution, use `vercel dev` if the Vercel CLI is installed.
+For local Vercel Functions, use:
+
+```bash
+vercel dev
+```
 
 ## Optional LLM mode
 
@@ -87,7 +137,36 @@ Copy `.env.example` to `.env.local` and set:
 GEMINI_API_KEY=your_key_here
 ```
 
-`/api/agent` first computes tool outputs and retrieves supporting documents, then supplies only that grounded context to the model. If the provider is unavailable, the deterministic decision-support path continues to work.
+`/api/agent` computes tool outputs and supporting document context before supplying grounded context to the model. If the provider is unavailable, the deterministic path continues to work.
+
+## Project Hub configuration
+
+Use only the public Supabase URL and publishable key in ordinary application code:
+
+```env
+SUPABASE_URL=https://nowlwprtcnieihelqjoa.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+```
+
+Never place a database password, secret key, or service-role credential in this repository or in frontend code.
+
+Before any future Supabase write, follow `AGENTS.md` and `SUPABASE_HUB_RULES.md`, read `hub.read_me_first`, verify the App #4 registry entry, and run:
+
+```sql
+select hub.assert_app_scope('commercialiq', 'commercialiq');
+```
+
+## Database migrations
+
+Canonical app-scoped migrations are kept under `database/migrations/`:
+
+```text
+commercialiq__001_core_schema.sql
+commercialiq__002_demo_data_and_read_policies.sql
+commercialiq__003_fk_indexes.sql
+```
+
+They create or modify only `commercialiq.*`. The corresponding versions are recorded in `hub.schema_versions` as part of the approved Project Hub onboarding process.
 
 ## Train the ML models
 
@@ -101,10 +180,6 @@ python train_models.py
 ```
 
 The pipeline trains forecasting, customer-risk and segmentation models and writes local artifacts to `ml/artifacts/` (git-ignored).
-
-## Database safety
-
-`database/schema.sql` uses dedicated `commercial_*` tables and enables Row Level Security. Apply it only to a dedicated CommercialIQ database/project. The public web demo does **not** require a database secret and contains no anonymous write policy.
 
 ## Agent tool layer
 
@@ -125,18 +200,22 @@ generate_executive_summary()
 
 ```text
 CommercialIQ/
-├── api/                   # serverless agent + health endpoints
-├── database/              # PostgreSQL schema
-├── ml/                    # reproducible Python ML pipeline
-├── public/                # favicon/static assets
-├── scripts/               # project integrity check
+├── AGENTS.md                       # app boundary / agent contract
+├── SUPABASE_HUB_RULES.md           # Project Hub rules
+├── api/                            # serverless agent, health and data endpoints
+├── database/
+│   ├── migrations/                 # app-scoped canonical migrations
+│   └── schema.sql                  # core CommercialIQ schema reference
+├── ml/                             # reproducible Python ML pipeline
+├── public/                         # favicon/static assets
+├── scripts/                        # project integrity checks
 ├── src/
-│   ├── components/        # reusable UI primitives
-│   ├── data/              # synthetic commercial demo data
-│   ├── lib/               # analytics + chart helpers
+│   ├── components/                 # reusable UI primitives
+│   ├── data/                       # deterministic UI fallback data
+│   ├── lib/                        # analytics + chart helpers
 │   ├── App.jsx
 │   └── styles.css
-├── .github/workflows/     # CI build validation
+├── .github/workflows/              # CI build validation
 ├── .env.example
 ├── vercel.json
 └── README.md
@@ -144,7 +223,7 @@ CommercialIQ/
 
 ## Why this is more than a notebook
 
-CommercialIQ deliberately combines business problem framing, data preparation, feature engineering, multiple ML paradigms, experiment comparison, model evaluation, SQL data modelling, RAG-style grounding, agent/tool design, API engineering, responsive product design, CI and deployment.
+CommercialIQ combines business problem framing, data preparation, feature engineering, multiple ML paradigms, experiment comparison, model evaluation, SQL data modelling, RAG-style grounding, agent/tool design, API engineering, database security, responsive product design, CI and deployment.
 
 ## Responsible-use note
 
