@@ -4,10 +4,19 @@ import {
   getFallbackCommercialData,
 } from "../lib/liveDataAdapter";
 
+const fallbackData = getFallbackCommercialData();
+
+// App.jsx's Model Lab is intentionally presentation-only and reads the validated
+// model comparison table globally. Initialize it before App renders so that the
+// Model Lab remains available even if live data is temporarily unavailable.
+if (typeof globalThis !== "undefined") {
+  globalThis.modelResults = fallbackData.modelResults;
+}
+
 export function useCommercialData() {
   const requestId = useRef(0);
   const [state, setState] = useState({
-    data: getFallbackCommercialData(),
+    data: fallbackData,
     mode: "loading",
     isLoading: true,
     error: null,
@@ -31,6 +40,9 @@ export function useCommercialData() {
         );
       const data = adaptCommercialData(payload);
       if (requestId.current !== currentRequest) return;
+      if (typeof globalThis !== "undefined") {
+        globalThis.modelResults = data.modelResults;
+      }
       setState({
         data,
         mode: "live",
@@ -40,8 +52,11 @@ export function useCommercialData() {
       });
     } catch (error) {
       if (requestId.current !== currentRequest) return;
+      if (typeof globalThis !== "undefined") {
+        globalThis.modelResults = fallbackData.modelResults;
+      }
       setState({
-        data: getFallbackCommercialData(),
+        data: fallbackData,
         mode: "fallback",
         isLoading: false,
         error:
@@ -63,7 +78,7 @@ export function useCommercialData() {
     refresh,
     sourceLabel:
       state.mode === "live"
-        ? "Live · Supabase App #4"
+        ? "Live · Supabase"
         : state.mode === "fallback"
           ? "Demo fallback"
           : "Loading live data…",
