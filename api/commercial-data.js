@@ -1,0 +1,98 @@
+// CommercialIQ App #4 — read-only Project Hub data adapter.
+// Uses only the public Supabase project URL + publishable key. Never use a secret/service-role key here.
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nowlwprtcnieihelqjoa.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_487zTc09VarME-Fgf6EYig__47s_JTp';
+const SCHEMA = 'commercialiq';
+
+function asNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function readTable(table, select = '*', query = '') {
+  const params = new URLSearchParams({ select });
+  const suffix = query ? `&${query}` : '';
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params.toString()}${suffix}`, {
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      'Accept-Profile': SCHEMA,
+      Accept: 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    let detail = null;
+    try { detail = await response.json(); } catch { detail = { message: await response.text() }; }
+    const error = new Error(detail?.message || `Supabase request failed (${response.status})`);
+    error.status = response.status;
+    error.code = detail?.code || 'SUPABASE_REQUEST_FAILED';
+    error.detail = detail?.details || null;
+    throw error;
+  }
+
+  return response.json();
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Use GET.' });
+
+  try {
+    const [transactions, products, segments, forecasts, risks, documents] = await Promise.all([
+      readTable('transactions', 'transaction_id,transaction_date,customer_id,product_id,region,units,revenue,inventory,marketing_spend', 'order=transaction_date.desc&limit=2000'),
+      readTable('products', 'product_id,product_name,category,unit_price', 'order=product_id.asc'),
+      readTable('segments', 'customer_id,segment_name,recency_days,frequency,monetary_value,cluster_id', 'order=customer_id.asc'),
+      readTable('forecasts', 'product_id,forecast_period,predicted_units,lower_bound,upper_bound,model_name,model_version', 'order=forecast_period.asc'),
+      readTable('risk_predictions', 'customer_id,risk_probability,model_name,drivers,predicted_at', 'order=risk_probability.desc'),
+      readTable('documents', 'document_id,title,page_count,source_type,metadata', 'order=document_id.asc')
+    ]);
+
+    const revenue = transactions.reduce((sum, row) => sum + asNumber(row.revenue), 0);
+    const units = transactions.reduce((sum, row) => sum + asNumber(row.units), 0);
+    const customers = new Set(transactions.map(row => row.customer_id)).size;
+    const regions = transactions.reduce((acc, row) => {
+      const key = row.region || 'Unknown';
+      const current = acc[key] || { revenue: 0, units: 0, transactions: 0 };
+      current.revenue += asNumber(row.revenue);
+      current.units += asNumber(row.units);
+      current.transactions += 1;
+      acc[key] = current;
+      return acc;
+    }, {});
+
+    return res.status(200).json({
+      ok: true,
+      source: 'supabase-project-hub',
+      appNumber: 4,
+      schema: SCHEMA,
+      synthetic: true,
+      metrics: { revenue, units, customers },
+      rowCounts: {
+        transactions: transactions.length,
+        products: products.length,
+        segments: segments.length,
+        forecasts: forecasts.length,
+        riskPredictions: risks.length,
+        documents: documents.length
+      },
+      regions,
+      products,
+      segments,
+      forecasts,
+      risks: risks.slice(0, 25),
+      documents,
+      recentTransactions: transactions.slice(0, 12),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(503).json({
+      ok: false,
+      source: 'supabase-project-hub',
+      appNumber: 4,
+      schema: SCHEMA,
+      error: error.code || 'DATA_SOURCE_UNAVAILABLE',
+      message: error.message,
+      detail: error.detail || null
+    });
+  }
+}
