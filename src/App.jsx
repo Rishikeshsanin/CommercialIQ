@@ -1,30 +1,1342 @@
-import React,{useMemo,useState} from 'react';
-import {Icon,Badge,MetricCard,LineChart,ProgressBar,PageHeader,StatusDot} from './components/UI';
-import {months,revenueSeries,demandSeries,products,regions,segments,riskCustomers,modelResults,forecast,anomalies,documents,dataPreview,kpis} from './data/commercialData';
-import {formatCurrency,localAgentAnswer,pct,totalSegmentCustomers} from './lib/analytics';
+import React, { useMemo, useState } from "react";
+import {
+  Icon,
+  Badge,
+  MetricCard,
+  LineChart,
+  ProgressBar,
+  PageHeader,
+  StatusDot,
+} from "./components/UI";
+import { useCommercialData } from "./hooks/useCommercialData";
+import { formatCurrency, localAgentAnswer, pct } from "./lib/analytics";
 
-const navItems=[['overview','Overview','overview'],['forecasting','Forecasting','forecast'],['segments','Segments','segments'],['risk','Predictive Risk','risk'],['ai','AI Analyst','ai'],['knowledge','Knowledge RAG','docs'],['models','Model Lab','model'],['data','Data Explorer','data']];
+const navItems = [
+  ["overview", "Overview", "overview"],
+  ["forecasting", "Forecasting", "forecast"],
+  ["segments", "Segments", "segments"],
+  ["risk", "Predictive Risk", "risk"],
+  ["ai", "AI Analyst", "ai"],
+  ["knowledge", "Knowledge RAG", "docs"],
+  ["models", "Model Lab", "model"],
+  ["data", "Data Explorer", "data"],
+];
 
-export default function App(){const[page,setPage]=useState('overview');const[menuOpen,setMenuOpen]=useState(false);const[lastRefresh,setLastRefresh]=useState('Live demo dataset');const navigate=next=>{setPage(next);setMenuOpen(false);window.scrollTo({top:0,behavior:'smooth'})};return <div className="app-shell"><Sidebar page={page} navigate={navigate} open={menuOpen} close={()=>setMenuOpen(false)}/><main className="main-shell"><Topbar onMenu={()=>setMenuOpen(true)} lastRefresh={lastRefresh} onRefresh={()=>setLastRefresh(`Refreshed ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`)}/><div className="content-shell">{page==='overview'&&<Overview navigate={navigate}/>} {page==='forecasting'&&<Forecasting/>}{page==='segments'&&<Segments/>}{page==='risk'&&<Risk/>}{page==='ai'&&<AIAnalyst/>}{page==='knowledge'&&<Knowledge/>}{page==='models'&&<Models/>}{page==='data'&&<DataExplorer/>}</div><Footer/></main></div>}
+export default function App() {
+  const [page, setPage] = useState("overview");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { data, mode, isLoading, error, updatedAt, sourceLabel, refresh } =
+    useCommercialData();
+  const navigate = (next) => {
+    setPage(next);
+    setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  return (
+    <div className="app-shell">
+      <Sidebar
+        page={page}
+        navigate={navigate}
+        open={menuOpen}
+        close={() => setMenuOpen(false)}
+        dataMode={mode}
+      />
+      <main className="main-shell">
+        <Topbar
+          onMenu={() => setMenuOpen(true)}
+          sourceLabel={sourceLabel}
+          mode={mode}
+          isLoading={isLoading}
+          error={error}
+          updatedAt={updatedAt}
+          onRefresh={refresh}
+        />
+        <div className="content-shell">
+          {page === "overview" && <Overview navigate={navigate} data={data} />}{" "}
+          {page === "forecasting" && <Forecasting data={data} />}{" "}
+          {page === "segments" && <Segments data={data} />}{" "}
+          {page === "risk" && <Risk data={data} />}{" "}
+          {page === "ai" && <AIAnalyst />}{" "}
+          {page === "knowledge" && <Knowledge data={data} />}{" "}
+          {page === "models" && <Models />}{" "}
+          {page === "data" && <DataExplorer data={data} />}
+        </div>
+        <Footer />
+      </main>
+    </div>
+  );
+}
 
-function Sidebar({page,navigate,open,close}){return <><button className={`sidebar-scrim ${open?'show':''}`} onClick={close} aria-label="Close navigation"/><aside className={`sidebar ${open?'open':''}`}><div className="brand" onClick={()=>navigate('overview')} role="button" tabIndex={0}><div className="brand-mark"><span>CI</span></div><div><strong>CommercialIQ</strong><small>Decision Intelligence</small></div></div><div className="nav-label">Workspace</div><nav>{navItems.map(([id,label,icon])=><button key={id} className={`nav-item ${page===id?'active':''}`} onClick={()=>navigate(id)}><Icon name={icon}/><span>{label}</span>{page===id&&<i/>}</button>)}</nav><div className="sidebar-spacer"/><div className="system-card"><div className="system-row"><span><StatusDot/> AI services</span><strong>Ready</strong></div><div className="system-row"><span><StatusDot/> Analytics</span><strong>Ready</strong></div><div className="system-row"><span><StatusDot tone="warn"/> Data mode</span><strong>Demo</strong></div></div><div className="sidebar-foot"><span>CommercialIQ v1.0</span><Badge tone="mint">Portfolio Build</Badge></div></aside></>}
-function Topbar({onMenu,lastRefresh,onRefresh}){return <header className="topbar"><button className="icon-btn menu-btn" onClick={onMenu} aria-label="Open navigation"><Icon name="menu"/></button><div className="top-status"><StatusDot/><span>System operational</span><small>{lastRefresh}</small></div><div className="top-actions"><button className="ghost-btn" onClick={onRefresh}>Refresh data</button><a className="icon-btn" href="https://github.com/Rishikeshsanin/CommercialIQ" target="_blank" rel="noreferrer" aria-label="Open GitHub"><Icon name="external"/></a><div className="avatar">RM</div></div></header>}
-function PanelTitle({eyebrow,title,right}){return <div className="panel-title"><div><span>{eyebrow}</span><h2>{title}</h2></div>{right&&<div>{right}</div>}</div>}
+function Sidebar({ page, navigate, open, close, dataMode }) {
+  const live = dataMode === "live";
+  return (
+    <>
+      <button
+        className={`sidebar-scrim ${open ? "show" : ""}`}
+        onClick={close}
+        aria-label="Close navigation"
+      />
+      <aside className={`sidebar ${open ? "open" : ""}`}>
+        <div
+          className="brand"
+          onClick={() => navigate("overview")}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="brand-mark">
+            <span>CI</span>
+          </div>
+          <div>
+            <strong>CommercialIQ</strong>
+            <small>Decision Intelligence</small>
+          </div>
+        </div>
+        <div className="nav-label">Workspace</div>
+        <nav>
+          {navItems.map(([id, label, icon]) => (
+            <button
+              key={id}
+              className={`nav-item ${page === id ? "active" : ""}`}
+              onClick={() => navigate(id)}
+            >
+              <Icon name={icon} />
+              <span>{label}</span>
+              {page === id && <i />}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-spacer" />
+        <div className="system-card">
+          <div className="system-row">
+            <span>
+              <StatusDot /> AI services
+            </span>
+            <strong>Ready</strong>
+          </div>
+          <div className="system-row">
+            <span>
+              <StatusDot /> Analytics
+            </span>
+            <strong>Ready</strong>
+          </div>
+          <div className="system-row">
+            <span>
+              <StatusDot tone={live ? "good" : "warn"} /> Data mode
+            </span>
+            <strong>
+              {live ? "Live" : dataMode === "loading" ? "Loading" : "Fallback"}
+            </strong>
+          </div>
+        </div>
+        <div className="sidebar-foot">
+          <span>CommercialIQ v1.0</span>
+          <Badge tone="mint">Portfolio Build</Badge>
+        </div>
+      </aside>
+    </>
+  );
+}
+function Topbar({
+  onMenu,
+  sourceLabel,
+  mode,
+  isLoading,
+  error,
+  updatedAt,
+  onRefresh,
+}) {
+  const title = updatedAt
+    ? `Last updated ${new Date(updatedAt).toLocaleString()}`
+    : undefined;
+  return (
+    <header className="topbar">
+      <button
+        className="icon-btn menu-btn"
+        onClick={onMenu}
+        aria-label="Open navigation"
+      >
+        <Icon name="menu" />
+      </button>
+      <div className="top-status" title={error || title}>
+        <StatusDot tone={mode === "fallback" ? "warn" : "good"} />
+        <span>
+          {mode === "fallback"
+            ? "Live data unavailable"
+            : isLoading
+              ? "Loading commercial data"
+              : "System operational"}
+        </span>
+        <small>{sourceLabel}</small>
+      </div>
+      <div className="top-actions">
+        <button
+          className="ghost-btn"
+          onClick={onRefresh}
+          disabled={isLoading}
+          aria-busy={isLoading}
+        >
+          {isLoading ? "Refreshing…" : "Refresh data"}
+        </button>
+        <a
+          className="icon-btn"
+          href="https://github.com/Rishikeshsanin/CommercialIQ"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open GitHub"
+        >
+          <Icon name="external" />
+        </a>
+        <div className="avatar">RM</div>
+      </div>
+    </header>
+  );
+}
+function PanelTitle({ eyebrow, title, right }) {
+  return (
+    <div className="panel-title">
+      <div>
+        <span>{eyebrow}</span>
+        <h2>{title}</h2>
+      </div>
+      {right && <div>{right}</div>}
+    </div>
+  );
+}
 
-function Overview({navigate}){return <><PageHeader kicker="Commercial command center" title="Turn signals into decisions." description="A unified view of commercial performance, demand, customer behavior and AI-generated next-best actions." action={<button className="primary-btn" onClick={()=>navigate('ai')}><Icon name="spark"/> Ask AI Analyst</button>}/><section className="metrics-grid"><MetricCard label="Revenue" value={`₹${kpis.revenue.toFixed(1)}M`} delta={pct(kpis.revenueGrowth)} sub="vs previous period" icon="overview" tone="mint"/><MetricCard label="Units sold" value={kpis.units.toLocaleString('en-IN')} delta={pct(kpis.unitGrowth)} sub="current period" icon="forecast" tone="blue"/><MetricCard label="Active customers" value={kpis.customers.toLocaleString('en-IN')} delta={pct(kpis.customerGrowth)} sub="commercial accounts" icon="segments" tone="violet"/><MetricCard label="Forecast accuracy" value={`${kpis.forecastAccuracy}%`} delta="+2.6%" sub="Gradient Boosting model" icon="model" tone="amber"/></section><section className="overview-grid"><article className="glass-card panel span-2"><PanelTitle eyebrow="24-month trend" title="Revenue momentum" right={<Badge tone="mint">+8.4% growth</Badge>}/><LineChart values={revenueSeries} labels={months} height={260} unit="₹M" compact/></article><article className="glass-card panel"><PanelTitle eyebrow="AI prioritized" title="Signals requiring attention" right={<Badge tone="danger">2 high</Badge>}/><div className="signal-list">{anomalies.map((a,i)=><div key={i} className="signal-item"><span className={`signal-level ${a.level}`}/><div><strong>{a.title}</strong><p>{a.text}</p></div><em>{a.metric}</em></div>)}</div></article></section><section className="overview-grid second-row"><article className="glass-card panel"><PanelTitle eyebrow="Portfolio" title="Product performance" right={<button className="text-btn" onClick={()=>navigate('forecasting')}>Forecasts <Icon name="arrow" size={15}/></button>}/><div className="product-list">{products.slice(0,5).map(p=><div className="product-row" key={p.id}><div><span>{p.name}</span><small>{p.category}</small></div><strong>{formatCurrency(p.revenue,true)}</strong><Badge tone={p.growth<0?'danger':p.growth>12?'mint':'neutral'}>{pct(p.growth)}</Badge></div>)}</div></article><article className="glass-card panel"><PanelTitle eyebrow="Geography" title="Regional performance"/><div className="region-list">{regions.map(r=><ProgressBar key={r.name} label={`${r.name} · ${formatCurrency(r.revenue,true)}`} value={r.share} suffix="% share"/>)}</div></article><article className="glass-card panel"><PanelTitle eyebrow="RFM intelligence" title="Customer mix" right={<button className="text-btn" onClick={()=>navigate('segments')}>Explore <Icon name="arrow" size={15}/></button>}/><div className="segment-stack">{segments.map(s=><div key={s.name} className="segment-mini"><span/><div><strong>{s.name}</strong><small>{s.size.toLocaleString('en-IN')} customers</small></div><em>{Math.round((s.size/totalSegmentCustomers)*100)}%</em></div>)}</div></article></section><section className="glass-card executive-card"><div className="executive-mark"><Icon name="ai" size={26}/></div><div className="executive-copy"><span className="page-kicker">AI executive brief</span><h2>Growth is healthy, but allocation should shift.</h2><p>Demand momentum supports additional inventory for NovaCore and Kinetra, while Solvexa and the East region need tighter exposure. Customer retention should prioritize high-value accounts showing deteriorating recency and frequency.</p></div><button className="primary-btn" onClick={()=>navigate('ai')}>Open analyst <Icon name="arrow" size={16}/></button></section></>}
+function Overview({ navigate, data }) {
+  const {
+    months,
+    revenueSeries,
+    products,
+    regions,
+    segments,
+    anomalies,
+    kpis,
+  } = data;
+  const totalSegmentCustomers = segments.reduce(
+    (sum, segment) => sum + segment.size,
+    0,
+  );
+  return (
+    <>
+      <PageHeader
+        kicker="Commercial command center"
+        title="Turn signals into decisions."
+        description="A unified view of commercial performance, demand, customer behavior and AI-generated next-best actions."
+        action={
+          <button className="primary-btn" onClick={() => navigate("ai")}>
+            <Icon name="spark" /> Ask AI Analyst
+          </button>
+        }
+      />
+      <section className="metrics-grid">
+        <MetricCard
+          label="Revenue"
+          value={`₹${kpis.revenue.toFixed(1)}M`}
+          delta={pct(kpis.revenueGrowth)}
+          sub="vs previous period"
+          icon="overview"
+          tone="mint"
+        />
+        <MetricCard
+          label="Units sold"
+          value={kpis.units.toLocaleString("en-IN")}
+          delta={pct(kpis.unitGrowth)}
+          sub="current period"
+          icon="forecast"
+          tone="blue"
+        />
+        <MetricCard
+          label="Active customers"
+          value={kpis.customers.toLocaleString("en-IN")}
+          delta={pct(kpis.customerGrowth)}
+          sub="commercial accounts"
+          icon="segments"
+          tone="violet"
+        />
+        <MetricCard
+          label="Forecast accuracy"
+          value={`${kpis.forecastAccuracy}%`}
+          delta="+2.6%"
+          sub="Gradient Boosting model"
+          icon="model"
+          tone="amber"
+        />
+      </section>
+      <section className="overview-grid">
+        <article className="glass-card panel span-2">
+          <PanelTitle
+            eyebrow="24-month trend"
+            title="Revenue momentum"
+            right={<Badge tone="mint">+8.4% growth</Badge>}
+          />
+          <LineChart
+            values={revenueSeries}
+            labels={months}
+            height={260}
+            unit="₹M"
+            compact
+          />
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="AI prioritized"
+            title="Signals requiring attention"
+            right={<Badge tone="danger">2 high</Badge>}
+          />
+          <div className="signal-list">
+            {anomalies.map((a, i) => (
+              <div key={i} className="signal-item">
+                <span className={`signal-level ${a.level}`} />
+                <div>
+                  <strong>{a.title}</strong>
+                  <p>{a.text}</p>
+                </div>
+                <em>{a.metric}</em>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+      <section className="overview-grid second-row">
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="Portfolio"
+            title="Product performance"
+            right={
+              <button
+                className="text-btn"
+                onClick={() => navigate("forecasting")}
+              >
+                Forecasts <Icon name="arrow" size={15} />
+              </button>
+            }
+          />
+          <div className="product-list">
+            {products.slice(0, 5).map((p) => (
+              <div className="product-row" key={p.id}>
+                <div>
+                  <span>{p.name}</span>
+                  <small>{p.category}</small>
+                </div>
+                <strong>{formatCurrency(p.revenue, true)}</strong>
+                <Badge
+                  tone={
+                    p.growth < 0 ? "danger" : p.growth > 12 ? "mint" : "neutral"
+                  }
+                >
+                  {pct(p.growth)}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle eyebrow="Geography" title="Regional performance" />
+          <div className="region-list">
+            {regions.map((r) => (
+              <ProgressBar
+                key={r.name}
+                label={`${r.name} · ${formatCurrency(r.revenue, true)}`}
+                value={r.share}
+                suffix="% share"
+              />
+            ))}
+          </div>
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="RFM intelligence"
+            title="Customer mix"
+            right={
+              <button className="text-btn" onClick={() => navigate("segments")}>
+                Explore <Icon name="arrow" size={15} />
+              </button>
+            }
+          />
+          <div className="segment-stack">
+            {segments.map((s) => (
+              <div key={s.name} className="segment-mini">
+                <span />
+                <div>
+                  <strong>{s.name}</strong>
+                  <small>{s.size.toLocaleString("en-IN")} customers</small>
+                </div>
+                <em>{Math.round((s.size / totalSegmentCustomers) * 100)}%</em>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+      <section className="glass-card executive-card">
+        <div className="executive-mark">
+          <Icon name="ai" size={26} />
+        </div>
+        <div className="executive-copy">
+          <span className="page-kicker">AI executive brief</span>
+          <h2>Growth is healthy, but allocation should shift.</h2>
+          <p>
+            Demand momentum supports additional inventory for NovaCore and
+            Kinetra, while Solvexa and the East region need tighter exposure.
+            Customer retention should prioritize high-value accounts showing
+            deteriorating recency and frequency.
+          </p>
+        </div>
+        <button className="primary-btn" onClick={() => navigate("ai")}>
+          Open analyst <Icon name="arrow" size={16} />
+        </button>
+      </section>
+    </>
+  );
+}
 
-function Forecasting(){const[product,setProduct]=useState('Portfolio');const[horizon,setHorizon]=useState('6 months');const selected=product==='Portfolio'?null:products.find(p=>p.name===product);const projected=selected?[selected.units,Math.round(selected.units*1.025),selected.forecast,Math.round(selected.forecast*1.018),Math.round(selected.forecast*1.031),Math.round(selected.forecast*1.046)]:forecast.map(f=>f.units);return <><PageHeader kicker="Predictive modeling" title="Demand forecasting" description="Time-aware forecasting with model comparison, confidence ranges and inventory-aware decision support." action={<div className="filter-row"><select value={product} onChange={e=>setProduct(e.target.value)}><option>Portfolio</option>{products.map(p=><option key={p.id}>{p.name}</option>)}</select><select value={horizon} onChange={e=>setHorizon(e.target.value)}><option>3 months</option><option>6 months</option><option>12 months</option></select></div>}/><section className="metrics-grid forecast-metrics"><MetricCard label="Next-period forecast" value={projected[0].toLocaleString('en-IN')} delta="+3.1%" sub="units · point estimate" icon="forecast" tone="mint"/><MetricCard label="Forecast horizon" value={horizon} sub="rolling production view" icon="model" tone="blue"/><MetricCard label="Best model" value="Gradient Boosting" sub="time-series validation" icon="spark" tone="violet"/><MetricCard label="Validation R²" value="0.93" delta="+0.12" sub="vs linear baseline" icon="check" tone="amber"/></section><section className="overview-grid"><article className="glass-card panel span-2"><PanelTitle eyebrow="Actual demand" title={`${product} demand outlook`} right={<Badge tone="blue">95% confidence table</Badge>}/><LineChart values={demandSeries.slice(-12)} labels={months.slice(-12)} height={300} unit="units" compact/><div className="forecast-table compact-table"><div className="table-head"><span>Period</span><span>Forecast</span><span>Lower</span><span>Upper</span></div>{forecast.map((f,i)=><div className="table-row" key={f.month}><span>{f.month}</span><strong>{selected?projected[i].toLocaleString('en-IN'):f.units.toLocaleString('en-IN')}</strong><span>{selected?Math.round(projected[i]*.955).toLocaleString('en-IN'):f.lower.toLocaleString('en-IN')}</span><span>{selected?Math.round(projected[i]*1.047).toLocaleString('en-IN'):f.upper.toLocaleString('en-IN')}</span></div>)}</div></article><article className="glass-card panel"><PanelTitle eyebrow="Experiment tracking" title="Model comparison"/><div className="model-comparison">{modelResults.forecasting.map((m,i)=><div className={`model-card ${i===2?'winner':''}`} key={m.model}><div><strong>{m.model}</strong>{i===2&&<Badge tone="mint">Selected</Badge>}</div><div className="model-stats"><span>MAE <b>{m.mae}</b></span><span>RMSE <b>{m.rmse}</b></span><span>R² <b>{m.r2}</b></span></div></div>)}</div><div className="decision-note"><Icon name="spark"/><div><strong>Decision signal</strong><p>Kinetra inventory is below projected demand. Increase near-term supply only within forecast confidence limits; Solvexa should be reviewed for excess inventory.</p></div></div></article></section></>}
+function Forecasting({ data }) {
+  const {
+    months,
+    demandSeries,
+    products,
+    modelResults,
+    forecast,
+    productForecasts,
+  } = data;
+  const [product, setProduct] = useState("Portfolio");
+  const [horizon, setHorizon] = useState("6 months");
+  const selected =
+    product === "Portfolio" ? null : products.find((p) => p.name === product);
+  const generatedUnits = selected
+    ? [
+        selected.units,
+        Math.round(selected.units * 1.025),
+        selected.forecast,
+        Math.round(selected.forecast * 1.018),
+        Math.round(selected.forecast * 1.031),
+        Math.round(selected.forecast * 1.046),
+      ]
+    : forecast.map((f) => f.units);
+  const displayedForecast = selected
+    ? productForecasts[selected.id] ||
+      forecast.map((period, index) => {
+        const units = generatedUnits[index] ?? generatedUnits.at(-1);
+        return {
+          ...period,
+          units,
+          lower: Math.round(units * 0.955),
+          upper: Math.round(units * 1.047),
+        };
+      })
+    : forecast;
+  return (
+    <>
+      <PageHeader
+        kicker="Predictive modeling"
+        title="Demand forecasting"
+        description="Time-aware forecasting with model comparison, confidence ranges and inventory-aware decision support."
+        action={
+          <div className="filter-row">
+            <select
+              value={product}
+              onChange={(e) => setProduct(e.target.value)}
+            >
+              <option>Portfolio</option>
+              {products.map((p) => (
+                <option key={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <select
+              value={horizon}
+              onChange={(e) => setHorizon(e.target.value)}
+            >
+              <option>3 months</option>
+              <option>6 months</option>
+              <option>12 months</option>
+            </select>
+          </div>
+        }
+      />
+      <section className="metrics-grid forecast-metrics">
+        <MetricCard
+          label="Next-period forecast"
+          value={displayedForecast[0].units.toLocaleString("en-IN")}
+          delta="+3.1%"
+          sub="units · point estimate"
+          icon="forecast"
+          tone="mint"
+        />
+        <MetricCard
+          label="Forecast horizon"
+          value={horizon}
+          sub="rolling production view"
+          icon="model"
+          tone="blue"
+        />
+        <MetricCard
+          label="Best model"
+          value="Gradient Boosting"
+          sub="time-series validation"
+          icon="spark"
+          tone="violet"
+        />
+        <MetricCard
+          label="Validation R²"
+          value="0.93"
+          delta="+0.12"
+          sub="vs linear baseline"
+          icon="check"
+          tone="amber"
+        />
+      </section>
+      <section className="overview-grid">
+        <article className="glass-card panel span-2">
+          <PanelTitle
+            eyebrow="Actual demand"
+            title={`${product} demand outlook`}
+            right={<Badge tone="blue">95% confidence table</Badge>}
+          />
+          <LineChart
+            values={demandSeries.slice(-12)}
+            labels={months.slice(-12)}
+            height={300}
+            unit="units"
+            compact
+          />
+          <div className="forecast-table compact-table">
+            <div className="table-head">
+              <span>Period</span>
+              <span>Forecast</span>
+              <span>Lower</span>
+              <span>Upper</span>
+            </div>
+            {displayedForecast.map((f) => (
+              <div className="table-row" key={f.month}>
+                <span>{f.month}</span>
+                <strong>{f.units.toLocaleString("en-IN")}</strong>
+                <span>{f.lower.toLocaleString("en-IN")}</span>
+                <span>{f.upper.toLocaleString("en-IN")}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle eyebrow="Experiment tracking" title="Model comparison" />
+          <div className="model-comparison">
+            {modelResults.forecasting.map((m, i) => (
+              <div
+                className={`model-card ${i === 2 ? "winner" : ""}`}
+                key={m.model}
+              >
+                <div>
+                  <strong>{m.model}</strong>
+                  {i === 2 && <Badge tone="mint">Selected</Badge>}
+                </div>
+                <div className="model-stats">
+                  <span>
+                    MAE <b>{m.mae}</b>
+                  </span>
+                  <span>
+                    RMSE <b>{m.rmse}</b>
+                  </span>
+                  <span>
+                    R² <b>{m.r2}</b>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="decision-note">
+            <Icon name="spark" />
+            <div>
+              <strong>Decision signal</strong>
+              <p>
+                Kinetra inventory is below projected demand. Increase near-term
+                supply only within forecast confidence limits; Solvexa should be
+                reviewed for excess inventory.
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
+    </>
+  );
+}
 
-function Segments(){const[selected,setSelected]=useState(segments[0]);return <><PageHeader kicker="Unsupervised learning" title="Customer segmentation" description="RFM feature engineering and K-Means clustering transform customer behavior into actionable commercial groups."/><section className="segment-hero-grid"><article className="glass-card panel segment-map"><PanelTitle eyebrow="Cluster landscape" title="5 behavior-driven segments" right={<Badge tone="mint">Silhouette 0.61</Badge>}/><div className="bubble-stage">{segments.map((s,i)=><button key={s.name} onClick={()=>setSelected(s)} className={`bubble b${i+1} ${selected.name===s.name?'selected':''}`}><strong>{s.name}</strong><small>{s.size}</small></button>)}</div></article><article className="glass-card panel segment-detail"><PanelTitle eyebrow="Selected segment" title={selected.name} right={<Badge tone={selected.score>80?'mint':selected.score<50?'danger':'blue'}>Score {selected.score}</Badge>}/><div className="segment-kpis"><div><span>Customers</span><strong>{selected.size.toLocaleString('en-IN')}</strong></div><div><span>Commercial value</span><strong>₹{selected.value}M</strong></div><div><span>Avg recency</span><strong>{selected.recency}d</strong></div><div><span>Frequency</span><strong>{selected.frequency}×</strong></div></div><div className="feature-grid"><ProgressBar label="Recency strength" value={Math.max(10,100-selected.recency/1.6)} suffix=""/><ProgressBar label="Frequency strength" value={Math.min(100,selected.frequency*5)} suffix=""/><ProgressBar label="Value score" value={selected.score} suffix=""/></div><div className="action-box"><span>Recommended action</span><p>{selected.action}</p></div></article></section><section className="glass-card panel table-panel"><PanelTitle eyebrow="Operational view" title="Segment playbook"/><div className="responsive-table"><div className="table-head five"><span>Segment</span><span>Customers</span><span>Recency</span><span>Frequency</span><span>Recommended action</span></div>{segments.map(s=><div className="table-row five" key={s.name}><strong>{s.name}</strong><span>{s.size.toLocaleString('en-IN')}</span><span>{s.recency} days</span><span>{s.frequency}×</span><span>{s.action}</span></div>)}</div></section></>}
+function Segments({ data }) {
+  const { segments } = data;
+  const [selectedName, setSelectedName] = useState(segments[0].name);
+  const selected =
+    segments.find((segment) => segment.name === selectedName) || segments[0];
+  return (
+    <>
+      <PageHeader
+        kicker="Unsupervised learning"
+        title="Customer segmentation"
+        description="RFM feature engineering and K-Means clustering transform customer behavior into actionable commercial groups."
+      />
+      <section className="segment-hero-grid">
+        <article className="glass-card panel segment-map">
+          <PanelTitle
+            eyebrow="Cluster landscape"
+            title="5 behavior-driven segments"
+            right={<Badge tone="mint">Silhouette 0.61</Badge>}
+          />
+          <div className="bubble-stage">
+            {segments.map((s, i) => (
+              <button
+                key={s.name}
+                onClick={() => setSelectedName(s.name)}
+                className={`bubble b${i + 1} ${selected.name === s.name ? "selected" : ""}`}
+              >
+                <strong>{s.name}</strong>
+                <small>{s.size}</small>
+              </button>
+            ))}
+          </div>
+        </article>
+        <article className="glass-card panel segment-detail">
+          <PanelTitle
+            eyebrow="Selected segment"
+            title={selected.name}
+            right={
+              <Badge
+                tone={
+                  selected.score > 80
+                    ? "mint"
+                    : selected.score < 50
+                      ? "danger"
+                      : "blue"
+                }
+              >
+                Score {selected.score}
+              </Badge>
+            }
+          />
+          <div className="segment-kpis">
+            <div>
+              <span>Customers</span>
+              <strong>{selected.size.toLocaleString("en-IN")}</strong>
+            </div>
+            <div>
+              <span>Commercial value</span>
+              <strong>₹{selected.value}M</strong>
+            </div>
+            <div>
+              <span>Avg recency</span>
+              <strong>{selected.recency}d</strong>
+            </div>
+            <div>
+              <span>Frequency</span>
+              <strong>{selected.frequency}×</strong>
+            </div>
+          </div>
+          <div className="feature-grid">
+            <ProgressBar
+              label="Recency strength"
+              value={Math.max(10, 100 - selected.recency / 1.6)}
+              suffix=""
+            />
+            <ProgressBar
+              label="Frequency strength"
+              value={Math.min(100, selected.frequency * 5)}
+              suffix=""
+            />
+            <ProgressBar label="Value score" value={selected.score} suffix="" />
+          </div>
+          <div className="action-box">
+            <span>Recommended action</span>
+            <p>{selected.action}</p>
+          </div>
+        </article>
+      </section>
+      <section className="glass-card panel table-panel">
+        <PanelTitle eyebrow="Operational view" title="Segment playbook" />
+        <div className="responsive-table">
+          <div className="table-head five">
+            <span>Segment</span>
+            <span>Customers</span>
+            <span>Recency</span>
+            <span>Frequency</span>
+            <span>Recommended action</span>
+          </div>
+          {segments.map((s) => (
+            <div className="table-row five" key={s.name}>
+              <strong>{s.name}</strong>
+              <span>{s.size.toLocaleString("en-IN")}</span>
+              <span>{s.recency} days</span>
+              <span>{s.frequency}×</span>
+              <span>{s.action}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
 
-function Risk(){const[threshold,setThreshold]=useState(60);const filtered=riskCustomers.filter(c=>c.risk>=threshold);return <><PageHeader kicker="Predictive analytics" title="Customer risk intelligence" description="Gradient-boosted classification identifies high-value customers with deteriorating engagement and explains the drivers behind each prediction." action={<div className="threshold-control"><span>Risk threshold {threshold}%</span><input type="range" min="40" max="80" value={threshold} onChange={e=>setThreshold(Number(e.target.value))}/></div>}/><section className="metrics-grid"><MetricCard label="High-risk accounts" value={filtered.length.toString()} sub={`≥ ${threshold}% predicted risk`} icon="risk" tone="amber"/><MetricCard label="Model ROC-AUC" value="0.93" delta="+0.11" sub="vs logistic baseline" icon="model" tone="mint"/><MetricCard label="Recall" value="84%" sub="high-risk class" icon="check" tone="blue"/><MetricCard label="Value exposed" value={formatCurrency(filtered.reduce((s,c)=>s+c.value,0))} sub="priority accounts" icon="segments" tone="violet"/></section><section className="overview-grid"><article className="glass-card panel span-2"><PanelTitle eyebrow="Prioritized outreach" title="At-risk high-value customers" right={<Badge tone="danger">Action recommended</Badge>}/><div className="risk-list">{filtered.length?filtered.map(c=><div className="risk-row" key={c.id}><div className="risk-id"><span>{c.id}</span><small>{c.segment}</small></div><div className="risk-value"><span>Annualized value</span><strong>{formatCurrency(c.value)}</strong></div><div className="risk-reason"><span>Primary driver</span><p>{c.reason}</p></div><div className="risk-score"><strong>{c.risk}%</strong><div><span style={{width:`${c.risk}%`}}/></div></div></div>):<div className="empty-inline">No accounts exceed the selected threshold.</div>}</div></article><article className="glass-card panel"><PanelTitle eyebrow="Explainable AI" title="SHAP-style drivers"/><div className="drivers"><ProgressBar label="Purchase frequency ↓" value={31}/><ProgressBar label="Days since purchase ↑" value={24}/><ProgressBar label="Spend trajectory ↓" value={19}/><ProgressBar label="Engagement ↓" value={16}/><ProgressBar label="Discount dependence ↑" value={10}/></div><p className="muted-note">Driver bars communicate relative contribution to a representative high-risk prediction. Production SHAP artifacts are generated by the Python training pipeline.</p></article></section></>}
+function Risk({ data }) {
+  const { riskCustomers } = data;
+  const [threshold, setThreshold] = useState(60);
+  const filtered = riskCustomers.filter((c) => c.risk >= threshold);
+  return (
+    <>
+      <PageHeader
+        kicker="Predictive analytics"
+        title="Customer risk intelligence"
+        description="Gradient-boosted classification identifies high-value customers with deteriorating engagement and explains the drivers behind each prediction."
+        action={
+          <div className="threshold-control">
+            <span>Risk threshold {threshold}%</span>
+            <input
+              type="range"
+              min="40"
+              max="80"
+              value={threshold}
+              onChange={(e) => setThreshold(Number(e.target.value))}
+            />
+          </div>
+        }
+      />
+      <section className="metrics-grid">
+        <MetricCard
+          label="High-risk accounts"
+          value={filtered.length.toString()}
+          sub={`≥ ${threshold}% predicted risk`}
+          icon="risk"
+          tone="amber"
+        />
+        <MetricCard
+          label="Model ROC-AUC"
+          value="0.93"
+          delta="+0.11"
+          sub="vs logistic baseline"
+          icon="model"
+          tone="mint"
+        />
+        <MetricCard
+          label="Recall"
+          value="84%"
+          sub="high-risk class"
+          icon="check"
+          tone="blue"
+        />
+        <MetricCard
+          label="Value exposed"
+          value={formatCurrency(filtered.reduce((s, c) => s + c.value, 0))}
+          sub="priority accounts"
+          icon="segments"
+          tone="violet"
+        />
+      </section>
+      <section className="overview-grid">
+        <article className="glass-card panel span-2">
+          <PanelTitle
+            eyebrow="Prioritized outreach"
+            title="At-risk high-value customers"
+            right={<Badge tone="danger">Action recommended</Badge>}
+          />
+          <div className="risk-list">
+            {filtered.length ? (
+              filtered.map((c) => (
+                <div className="risk-row" key={c.id}>
+                  <div className="risk-id">
+                    <span>{c.id}</span>
+                    <small>{c.segment}</small>
+                  </div>
+                  <div className="risk-value">
+                    <span>Annualized value</span>
+                    <strong>{formatCurrency(c.value)}</strong>
+                  </div>
+                  <div className="risk-reason">
+                    <span>Primary driver</span>
+                    <p>{c.reason}</p>
+                  </div>
+                  <div className="risk-score">
+                    <strong>{c.risk}%</strong>
+                    <div>
+                      <span style={{ width: `${c.risk}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty-inline">
+                No accounts exceed the selected threshold.
+              </div>
+            )}
+          </div>
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle eyebrow="Explainable AI" title="SHAP-style drivers" />
+          <div className="drivers">
+            <ProgressBar label="Purchase frequency ↓" value={31} />
+            <ProgressBar label="Days since purchase ↑" value={24} />
+            <ProgressBar label="Spend trajectory ↓" value={19} />
+            <ProgressBar label="Engagement ↓" value={16} />
+            <ProgressBar label="Discount dependence ↑" value={10} />
+          </div>
+          <p className="muted-note">
+            Driver bars communicate relative contribution to a representative
+            high-risk prediction. Production SHAP artifacts are generated by the
+            Python training pipeline.
+          </p>
+        </article>
+      </section>
+    </>
+  );
+}
 
-function AIAnalyst(){const suggestions=['What are the biggest commercial risks?','Forecast demand and inventory pressure','Which customer segments need attention?','Where are the strongest growth opportunities?'];const[messages,setMessages]=useState([{role:'assistant',content:'I’m your CommercialIQ analyst. I can orchestrate forecasting, segmentation, anomaly and knowledge-retrieval tools to turn commercial data into a decision brief.',meta:{tools:['get_revenue_summary','detect_sales_anomalies'],confidence:.95}}]);const[input,setInput]=useState('');const[loading,setLoading]=useState(false);const ask=async(question=input)=>{const q=question.trim();if(!q||loading)return;setMessages(m=>[...m,{role:'user',content:q}]);setInput('');setLoading(true);try{const res=await fetch('/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});if(!res.ok)throw new Error('API unavailable');const data=await res.json();setMessages(m=>[...m,{role:'assistant',content:data.answer,meta:data}])}catch{const data=localAgentAnswer(q);setMessages(m=>[...m,{role:'assistant',content:data.answer,meta:{...data,mode:'local-fallback'}}])}finally{setLoading(false)}};return <><PageHeader kicker="Agentic analytics" title="AI Commercial Analyst" description="A tool-using analyst that combines metrics, forecasting, segmentation and document retrieval before generating a recommendation." action={<Badge tone="mint"><StatusDot/> Agent ready</Badge>}/><section className="ai-layout"><article className="glass-card chat-panel"><div className="chat-head"><div><strong>CommercialIQ Agent</strong><small>Grounded decision support · no hidden chain-of-thought</small></div><Badge tone="blue">Tool orchestration</Badge></div><div className="chat-body">{messages.map((m,i)=><ChatMessage key={i} message={m}/>)}{loading&&<div className="message assistant"><div className="assistant-mark"><Icon name="ai"/></div><div className="message-bubble typing"><i/><i/><i/></div></div>}</div><div className="suggestion-row">{suggestions.map(s=><button key={s} onClick={()=>ask(s)}>{s}</button>)}</div><div className="chat-input"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')ask()}} placeholder="Ask a commercial question…"/><button className="primary-btn square" onClick={()=>ask()} aria-label="Send"><Icon name="arrow"/></button></div></article><aside className="ai-side"><article className="glass-card panel"><PanelTitle eyebrow="Available tools" title="Agent toolbox"/><div className="tool-list">{['get_revenue_summary','forecast_sales','get_customer_segments','identify_at_risk_customers','detect_sales_anomalies','query_commercial_database','search_business_documents','generate_executive_summary'].map((t,i)=><div key={t}><span className="tool-icon">0{i+1}</span><code>{t}()</code><StatusDot/></div>)}</div></article><article className="glass-card panel"><PanelTitle eyebrow="Guardrails" title="Trust by design"/><ul className="check-list"><li><Icon name="check"/>Ground answers in computed data</li><li><Icon name="check"/>Cite retrieved documents</li><li><Icon name="check"/>Expose confidence and tools</li><li><Icon name="check"/>Keep human review for decisions</li></ul></article></aside></section></>}
-function ChatMessage({message}){return <div className={`message ${message.role}`}>{message.role==='assistant'&&<div className="assistant-mark"><Icon name="ai"/></div>}<div className="message-wrap"><div className="message-bubble">{message.content}</div>{message.meta&&<div className="message-meta">{message.meta.tools?.map(t=><span key={t}>{t}</span>)}{message.meta.confidence&&<Badge tone="mint">{Math.round(message.meta.confidence*100)}% confidence</Badge>}</div>}{message.meta?.sources?.length>0&&<div className="source-strip">{message.meta.sources.map(s=><span key={s.id}><Icon name="docs" size={14}/>{s.title} · p.{s.page}</span>)}</div>}</div></div>}
+function AIAnalyst() {
+  const suggestions = [
+    "What are the biggest commercial risks?",
+    "Forecast demand and inventory pressure",
+    "Which customer segments need attention?",
+    "Where are the strongest growth opportunities?",
+  ];
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content:
+        "I’m your CommercialIQ analyst. I can orchestrate forecasting, segmentation, anomaly and knowledge-retrieval tools to turn commercial data into a decision brief.",
+      meta: {
+        tools: ["get_revenue_summary", "detect_sales_anomalies"],
+        confidence: 0.95,
+      },
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const ask = async (question = input) => {
+    const q = question.trim();
+    if (!q || loading) return;
+    setMessages((m) => [...m, { role: "user", content: q }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q }),
+      });
+      if (!res.ok) throw new Error("API unavailable");
+      const data = await res.json();
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: data.answer, meta: data },
+      ]);
+    } catch {
+      const data = localAgentAnswer(q);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: data.answer,
+          meta: { ...data, mode: "local-fallback" },
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <>
+      <PageHeader
+        kicker="Agentic analytics"
+        title="AI Commercial Analyst"
+        description="A tool-using analyst that combines metrics, forecasting, segmentation and document retrieval before generating a recommendation."
+        action={
+          <Badge tone="mint">
+            <StatusDot /> Agent ready
+          </Badge>
+        }
+      />
+      <section className="ai-layout">
+        <article className="glass-card chat-panel">
+          <div className="chat-head">
+            <div>
+              <strong>CommercialIQ Agent</strong>
+              <small>
+                Grounded decision support · no hidden chain-of-thought
+              </small>
+            </div>
+            <Badge tone="blue">Tool orchestration</Badge>
+          </div>
+          <div className="chat-body">
+            {messages.map((m, i) => (
+              <ChatMessage key={i} message={m} />
+            ))}
+            {loading && (
+              <div className="message assistant">
+                <div className="assistant-mark">
+                  <Icon name="ai" />
+                </div>
+                <div className="message-bubble typing">
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="suggestion-row">
+            {suggestions.map((s) => (
+              <button key={s} onClick={() => ask(s)}>
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="chat-input">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") ask();
+              }}
+              placeholder="Ask a commercial question…"
+            />
+            <button
+              className="primary-btn square"
+              onClick={() => ask()}
+              aria-label="Send"
+            >
+              <Icon name="arrow" />
+            </button>
+          </div>
+        </article>
+        <aside className="ai-side">
+          <article className="glass-card panel">
+            <PanelTitle eyebrow="Available tools" title="Agent toolbox" />
+            <div className="tool-list">
+              {[
+                "get_revenue_summary",
+                "forecast_sales",
+                "get_customer_segments",
+                "identify_at_risk_customers",
+                "detect_sales_anomalies",
+                "query_commercial_database",
+                "search_business_documents",
+                "generate_executive_summary",
+              ].map((t, i) => (
+                <div key={t}>
+                  <span className="tool-icon">0{i + 1}</span>
+                  <code>{t}()</code>
+                  <StatusDot />
+                </div>
+              ))}
+            </div>
+          </article>
+          <article className="glass-card panel">
+            <PanelTitle eyebrow="Guardrails" title="Trust by design" />
+            <ul className="check-list">
+              <li>
+                <Icon name="check" />
+                Ground answers in computed data
+              </li>
+              <li>
+                <Icon name="check" />
+                Cite retrieved documents
+              </li>
+              <li>
+                <Icon name="check" />
+                Expose confidence and tools
+              </li>
+              <li>
+                <Icon name="check" />
+                Keep human review for decisions
+              </li>
+            </ul>
+          </article>
+        </aside>
+      </section>
+    </>
+  );
+}
+function ChatMessage({ message }) {
+  return (
+    <div className={`message ${message.role}`}>
+      {message.role === "assistant" && (
+        <div className="assistant-mark">
+          <Icon name="ai" />
+        </div>
+      )}
+      <div className="message-wrap">
+        <div className="message-bubble">{message.content}</div>
+        {message.meta && (
+          <div className="message-meta">
+            {message.meta.tools?.map((t) => (
+              <span key={t}>{t}</span>
+            ))}
+            {message.meta.confidence && (
+              <Badge tone="mint">
+                {Math.round(message.meta.confidence * 100)}% confidence
+              </Badge>
+            )}
+          </div>
+        )}
+        {message.meta?.sources?.length > 0 && (
+          <div className="source-strip">
+            {message.meta.sources.map((s) => (
+              <span key={s.id}>
+                <Icon name="docs" size={14} />
+                {s.title} · p.{s.page}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-function Knowledge(){const[query,setQuery]=useState('declining region');const matches=useMemo(()=>{const terms=query.toLowerCase().split(/\s+/).filter(Boolean);return documents.map(d=>({...d,score:terms.reduce((s,t)=>s+((d.title+' '+d.topic+' '+d.excerpt).toLowerCase().includes(t)?1:0),0)})).sort((a,b)=>b.score-a.score)},[query]);return <><PageHeader kicker="Retrieval-augmented generation" title="Knowledge RAG" description="Semantic-style retrieval grounds AI recommendations in an auditable business knowledge base with page-level source references."/><section className="knowledge-grid"><article className="glass-card panel"><PanelTitle eyebrow="Knowledge base" title="Indexed documents" right={<Badge tone="mint">4 ready</Badge>}/><div className="doc-list">{documents.map(d=><div className="doc-card" key={d.id}><div className="doc-icon"><Icon name="docs"/></div><div><strong>{d.title}</strong><span>{d.id} · indexed · {d.topic}</span><p>{d.excerpt}</p></div></div>)}</div></article><article className="glass-card panel retrieval-panel"><PanelTitle eyebrow="Retriever lab" title="Test grounded retrieval"/><div className="search-box"><Icon name="search"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search policy or strategy…"/></div><div className="retrieval-results">{matches.slice(0,3).map((d,i)=><div className={`retrieval-card ${i===0?'top':''}`} key={d.id}><div><Badge tone={i===0?'mint':'neutral'}>{i===0?'Top match':`Rank ${i+1}`}</Badge><span>Similarity proxy {Math.max(42,92-i*17)}%</span></div><strong>{d.title} · Page {d.page}</strong><p>{d.excerpt}</p></div>)}</div><div className="rag-pipeline"><span>Documents</span><Icon name="arrow"/><span>Chunks</span><Icon name="arrow"/><span>Embeddings</span><Icon name="arrow"/><span>Retriever</span><Icon name="arrow"/><span>Grounded answer</span></div></article></section></>}
+function Knowledge({ data }) {
+  const { documents } = data;
+  const [query, setQuery] = useState("declining region");
+  const matches = useMemo(() => {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return documents
+      .map((d) => ({
+        ...d,
+        score: terms.reduce(
+          (s, t) =>
+            s +
+            ((d.title + " " + d.topic + " " + d.excerpt)
+              .toLowerCase()
+              .includes(t)
+              ? 1
+              : 0),
+          0,
+        ),
+      }))
+      .sort((a, b) => b.score - a.score);
+  }, [documents, query]);
+  return (
+    <>
+      <PageHeader
+        kicker="Retrieval-augmented generation"
+        title="Knowledge RAG"
+        description="Semantic-style retrieval grounds AI recommendations in an auditable business knowledge base with page-level source references."
+      />
+      <section className="knowledge-grid">
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="Knowledge base"
+            title="Indexed documents"
+            right={<Badge tone="mint">{documents.length} ready</Badge>}
+          />
+          <div className="doc-list">
+            {documents.map((d) => (
+              <div className="doc-card" key={d.id}>
+                <div className="doc-icon">
+                  <Icon name="docs" />
+                </div>
+                <div>
+                  <strong>{d.title}</strong>
+                  <span>
+                    {d.id} · indexed · {d.topic}
+                  </span>
+                  <p>{d.excerpt}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="glass-card panel retrieval-panel">
+          <PanelTitle eyebrow="Retriever lab" title="Test grounded retrieval" />
+          <div className="search-box">
+            <Icon name="search" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search policy or strategy…"
+            />
+          </div>
+          <div className="retrieval-results">
+            {matches.slice(0, 3).map((d, i) => (
+              <div
+                className={`retrieval-card ${i === 0 ? "top" : ""}`}
+                key={d.id}
+              >
+                <div>
+                  <Badge tone={i === 0 ? "mint" : "neutral"}>
+                    {i === 0 ? "Top match" : `Rank ${i + 1}`}
+                  </Badge>
+                  <span>Similarity proxy {Math.max(42, 92 - i * 17)}%</span>
+                </div>
+                <strong>
+                  {d.title} ·{" "}
+                  {d.pageCount ? `${d.pageCount} pages` : `Page ${d.page}`}
+                </strong>
+                <p>{d.excerpt}</p>
+              </div>
+            ))}
+          </div>
+          <div className="rag-pipeline">
+            <span>Documents</span>
+            <Icon name="arrow" />
+            <span>Chunks</span>
+            <Icon name="arrow" />
+            <span>Embeddings</span>
+            <Icon name="arrow" />
+            <span>Retriever</span>
+            <Icon name="arrow" />
+            <span>Grounded answer</span>
+          </div>
+        </article>
+      </section>
+    </>
+  );
+}
 
-function Models(){return <><PageHeader kicker="Model lifecycle" title="Model lab & validation" description="Experiment comparison, validation metrics and documented model choices across forecasting, classification and clustering."/><section className="model-grid"><article className="glass-card panel"><PanelTitle eyebrow="Regression" title="Forecasting models" right={<Badge tone="mint">Selected: Gradient Boosting</Badge>}/><div className="metric-table"><div className="metric-head"><span>Model</span><span>MAE ↓</span><span>RMSE ↓</span><span>R² ↑</span></div>{modelResults.forecasting.map((m,i)=><div className={`metric-line ${i===2?'selected':''}`} key={m.model}><strong>{m.model}</strong><span>{m.mae}</span><span>{m.rmse}</span><span>{m.r2}</span></div>)}</div></article><article className="glass-card panel"><PanelTitle eyebrow="Classification" title="Customer risk models" right={<Badge tone="mint">ROC-AUC 0.93</Badge>}/><div className="metric-table"><div className="metric-head"><span>Model</span><span>Precision</span><span>Recall</span><span>F1</span></div>{modelResults.classification.map((m,i)=><div className={`metric-line ${i===2?'selected':''}`} key={m.model}><strong>{m.model}</strong><span>{m.precision}</span><span>{m.recall}</span><span>{m.f1}</span></div>)}</div></article><article className="glass-card panel"><PanelTitle eyebrow="Clustering" title="RFM K-Means" right={<Badge tone="blue">k = 5</Badge>}/><div className="cluster-score"><strong>{modelResults.clustering.silhouette}</strong><span>Silhouette score</span><p>Chosen after comparing candidate cluster counts and validating commercial interpretability.</p></div><div className="feature-tags">{modelResults.clustering.features.map(f=><span key={f}>{f}</span>)}</div></article></section><section className="glass-card panel lifecycle-card"><PanelTitle eyebrow="End-to-end workflow" title="Production-minded ML lifecycle"/><div className="lifecycle">{['Ingest','Clean','Engineer','Train','Validate','Explain','Serve','Monitor'].map((s,i)=><React.Fragment key={s}><div><span>{String(i+1).padStart(2,'0')}</span><strong>{s}</strong></div>{i<7&&<Icon name="arrow"/>}</React.Fragment>)}</div></section></>}
+function Models() {
+  return (
+    <>
+      <PageHeader
+        kicker="Model lifecycle"
+        title="Model lab & validation"
+        description="Experiment comparison, validation metrics and documented model choices across forecasting, classification and clustering."
+      />
+      <section className="model-grid">
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="Regression"
+            title="Forecasting models"
+            right={<Badge tone="mint">Selected: Gradient Boosting</Badge>}
+          />
+          <div className="metric-table">
+            <div className="metric-head">
+              <span>Model</span>
+              <span>MAE ↓</span>
+              <span>RMSE ↓</span>
+              <span>R² ↑</span>
+            </div>
+            {modelResults.forecasting.map((m, i) => (
+              <div
+                className={`metric-line ${i === 2 ? "selected" : ""}`}
+                key={m.model}
+              >
+                <strong>{m.model}</strong>
+                <span>{m.mae}</span>
+                <span>{m.rmse}</span>
+                <span>{m.r2}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="Classification"
+            title="Customer risk models"
+            right={<Badge tone="mint">ROC-AUC 0.93</Badge>}
+          />
+          <div className="metric-table">
+            <div className="metric-head">
+              <span>Model</span>
+              <span>Precision</span>
+              <span>Recall</span>
+              <span>F1</span>
+            </div>
+            {modelResults.classification.map((m, i) => (
+              <div
+                className={`metric-line ${i === 2 ? "selected" : ""}`}
+                key={m.model}
+              >
+                <strong>{m.model}</strong>
+                <span>{m.precision}</span>
+                <span>{m.recall}</span>
+                <span>{m.f1}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="Clustering"
+            title="RFM K-Means"
+            right={<Badge tone="blue">k = 5</Badge>}
+          />
+          <div className="cluster-score">
+            <strong>{modelResults.clustering.silhouette}</strong>
+            <span>Silhouette score</span>
+            <p>
+              Chosen after comparing candidate cluster counts and validating
+              commercial interpretability.
+            </p>
+          </div>
+          <div className="feature-tags">
+            {modelResults.clustering.features.map((f) => (
+              <span key={f}>{f}</span>
+            ))}
+          </div>
+        </article>
+      </section>
+      <section className="glass-card panel lifecycle-card">
+        <PanelTitle
+          eyebrow="End-to-end workflow"
+          title="Production-minded ML lifecycle"
+        />
+        <div className="lifecycle">
+          {[
+            "Ingest",
+            "Clean",
+            "Engineer",
+            "Train",
+            "Validate",
+            "Explain",
+            "Serve",
+            "Monitor",
+          ].map((s, i) => (
+            <React.Fragment key={s}>
+              <div>
+                <span>{String(i + 1).padStart(2, "0")}</span>
+                <strong>{s}</strong>
+              </div>
+              {i < 7 && <Icon name="arrow" />}
+            </React.Fragment>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
 
-function DataExplorer(){const[search,setSearch]=useState('');const rows=dataPreview.filter(r=>r.join(' ').toLowerCase().includes(search.toLowerCase()));return <><PageHeader kicker="Data preparation" title="Commercial data explorer" description="A transparent view of the structured transaction layer used for analytics, feature engineering and model development." action={<Badge tone="blue">PostgreSQL-ready schema</Badge>}/><section className="metrics-grid"><MetricCard label="Transactions" value="120,000" sub="synthetic demo population" icon="data" tone="mint"/><MetricCard label="Customers" value="4,418" sub="de-identified commercial IDs" icon="segments" tone="blue"/><MetricCard label="Products" value="6" sub="portfolio entities" icon="overview" tone="violet"/><MetricCard label="Data quality" value="99.4%" delta="+1.2%" sub="post-validation completeness" icon="check" tone="amber"/></section><section className="glass-card panel table-panel"><div className="data-toolbar"><PanelTitle eyebrow="Sample records" title="Transaction table"/><div className="search-box small"><Icon name="search"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Filter rows…"/></div></div><div className="responsive-table data-table"><div className="table-head nine"><span>Transaction</span><span>Date</span><span>Customer</span><span>Product</span><span>Region</span><span>Units</span><span>Unit price</span><span>Discount</span><span>Revenue</span></div>{rows.map(r=><div className="table-row nine" key={r[0]}>{r.map((v,i)=><span key={i}>{i===6?formatCurrency(v):i===7?`${Math.round(v*100)}%`:i===8?formatCurrency(v):v}</span>)}</div>)}</div></section><section className="data-notes"><article className="glass-card panel"><PanelTitle eyebrow="Preparation" title="Data quality pipeline"/><ul className="check-list"><li><Icon name="check"/>Duplicate transaction detection</li><li><Icon name="check"/>Missing-value imputation rules</li><li><Icon name="check"/>Date and category normalization</li><li><Icon name="check"/>Outlier flags for price and volume</li></ul></article><article className="glass-card panel"><PanelTitle eyebrow="Feature engineering" title="Derived model features"/><div className="feature-tags wrap">{['revenue','month','quarter','lag_1','lag_3','rolling_mean_3','rolling_mean_6','RFM','inventory_gap','growth_rate','discount_rate','marketing_roi'].map(f=><span key={f}>{f}</span>)}</div></article></section></>}
-function Footer(){return <footer><span>CommercialIQ · AI-Powered Commercial Decision Intelligence</span><span>Demo data only · Built for explainable, auditable analytics</span></footer>}
+function DataExplorer({ data }) {
+  const { dataPreview, dataCounts } = data;
+  const [search, setSearch] = useState("");
+  const rows = dataPreview.filter((r) =>
+    r.join(" ").toLowerCase().includes(search.toLowerCase()),
+  );
+  return (
+    <>
+      <PageHeader
+        kicker="Data preparation"
+        title="Commercial data explorer"
+        description="A transparent view of the structured transaction layer used for analytics, feature engineering and model development."
+        action={<Badge tone="blue">PostgreSQL-ready schema</Badge>}
+      />
+      <section className="metrics-grid">
+        <MetricCard
+          label="Transactions"
+          value={dataCounts.transactions.toLocaleString("en-IN")}
+          sub="synthetic demo population"
+          icon="data"
+          tone="mint"
+        />
+        <MetricCard
+          label="Customers"
+          value={dataCounts.customers.toLocaleString("en-IN")}
+          sub="de-identified commercial IDs"
+          icon="segments"
+          tone="blue"
+        />
+        <MetricCard
+          label="Products"
+          value={dataCounts.products.toLocaleString("en-IN")}
+          sub="portfolio entities"
+          icon="overview"
+          tone="violet"
+        />
+        <MetricCard
+          label="Data quality"
+          value="99.4%"
+          delta="+1.2%"
+          sub="post-validation completeness"
+          icon="check"
+          tone="amber"
+        />
+      </section>
+      <section className="glass-card panel table-panel">
+        <div className="data-toolbar">
+          <PanelTitle eyebrow="Sample records" title="Transaction table" />
+          <div className="search-box small">
+            <Icon name="search" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter rows…"
+            />
+          </div>
+        </div>
+        <div className="responsive-table data-table">
+          <div className="table-head nine">
+            <span>Transaction</span>
+            <span>Date</span>
+            <span>Customer</span>
+            <span>Product</span>
+            <span>Region</span>
+            <span>Units</span>
+            <span>Unit price</span>
+            <span>Discount</span>
+            <span>Revenue</span>
+          </div>
+          {rows.map((r) => (
+            <div className="table-row nine" key={r[0]}>
+              {r.map((v, i) => (
+                <span key={i}>
+                  {i === 6
+                    ? formatCurrency(v)
+                    : i === 7
+                      ? `${Math.round(v * 100)}%`
+                      : i === 8
+                        ? formatCurrency(v)
+                        : v}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="data-notes">
+        <article className="glass-card panel">
+          <PanelTitle eyebrow="Preparation" title="Data quality pipeline" />
+          <ul className="check-list">
+            <li>
+              <Icon name="check" />
+              Duplicate transaction detection
+            </li>
+            <li>
+              <Icon name="check" />
+              Missing-value imputation rules
+            </li>
+            <li>
+              <Icon name="check" />
+              Date and category normalization
+            </li>
+            <li>
+              <Icon name="check" />
+              Outlier flags for price and volume
+            </li>
+          </ul>
+        </article>
+        <article className="glass-card panel">
+          <PanelTitle
+            eyebrow="Feature engineering"
+            title="Derived model features"
+          />
+          <div className="feature-tags wrap">
+            {[
+              "revenue",
+              "month",
+              "quarter",
+              "lag_1",
+              "lag_3",
+              "rolling_mean_3",
+              "rolling_mean_6",
+              "RFM",
+              "inventory_gap",
+              "growth_rate",
+              "discount_rate",
+              "marketing_roi",
+            ].map((f) => (
+              <span key={f}>{f}</span>
+            ))}
+          </div>
+        </article>
+      </section>
+    </>
+  );
+}
+function Footer() {
+  return (
+    <footer>
+      <span>CommercialIQ · AI-Powered Commercial Decision Intelligence</span>
+      <span>Demo data only · Built for explainable, auditable analytics</span>
+    </footer>
+  );
+}
