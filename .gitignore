@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+ml/artifacts/*.joblib
+ml/artifacts/*.pkl
+coverage/
+.vercel/
