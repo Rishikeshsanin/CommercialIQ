@@ -1,0 +1,2 @@
+import fs from 'node:fs';
+const required=['src/main.jsx','src/App.jsx','src/styles.css','api/agent.js','api/health.js','ml/train_models.py','database/schema.sql','README.md'];const missing=required.filter(file=>!fs.existsSync(new URL(`../${file}`,import.meta.url)));if(missing.length){console.error(`Missing required files: ${missing.join(', ')}`);process.exit(1)}console.log('CommercialIQ project structure check passed.');
