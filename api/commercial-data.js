@@ -33,13 +33,30 @@ async function readTable(table, select = '*', query = '') {
   return response.json();
 }
 
+async function readAllTable(table, select = '*', query = '') {
+  const pageSize = 1000;
+  const maxRows = 10000;
+  let offset = 0;
+  const rows = [];
+
+  while (offset < maxRows) {
+    const paging = `${query}${query ? '&' : ''}limit=${pageSize}&offset=${offset}`;
+    const page = await readTable(table, select, paging);
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return rows;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET') return res.status(405).json({ error: 'Use GET.' });
 
   try {
     const [transactions, products, segments, forecasts, risks, documents] = await Promise.all([
-      readTable('transactions', 'transaction_id,transaction_date,customer_id,product_id,region,units,revenue,inventory,marketing_spend', 'order=transaction_date.desc&limit=2000'),
+      readAllTable('transactions', 'transaction_id,transaction_date,customer_id,product_id,region,units,revenue,inventory,marketing_spend', 'order=transaction_date.desc'),
       readTable('products', 'product_id,product_name,category,unit_price', 'order=product_id.asc'),
       readTable('segments', 'customer_id,segment_name,recency_days,frequency,monetary_value,cluster_id', 'order=customer_id.asc'),
       readTable('forecasts', 'product_id,forecast_period,predicted_units,lower_bound,upper_bound,model_name,model_version', 'order=forecast_period.asc'),
