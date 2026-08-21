@@ -2,6 +2,9 @@
 
 **AI-Powered Commercial Decision Intelligence Platform**
 
+**Live Demo:** https://commercialiq-cyan.vercel.app  
+**Repository:** https://github.com/Rishikeshsanin/CommercialIQ
+
 CommercialIQ is an end-to-end applied-AI portfolio project that turns commercial data into forecasts, customer segments, risk signals, grounded knowledge answers, and actionable decision support. It is designed around the complete AI lifecycle: **data preparation → feature engineering → model training → validation → explainability → agentic analytics → deployment**.
 
 > The public demo uses synthetic commercial data only. It is not a clinical or medical decision system.
