@@ -15,3 +15,5 @@ jobs:
       - run: npm run check
       - run: npm run build
       - run: node --check api/agent.js
+      - run: node --check api/commercial-data.js
+      - run: node --check api/health.js
