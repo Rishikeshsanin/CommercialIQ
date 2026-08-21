@@ -32,6 +32,17 @@ const dateLabel = (value) => {
   });
 };
 
+const monthLabel = (value) => {
+  const normalized = String(value || "");
+  const date = new Date(`${normalized}-01T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return normalized || "Period";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    year: "2-digit",
+    timeZone: "UTC",
+  });
+};
+
 const fallbackData = {
   months: fallback.months,
   revenueSeries: fallback.revenueSeries,
@@ -49,6 +60,15 @@ const fallbackData = {
   kpis: fallback.kpis,
   dataCounts: { transactions: 120000, customers: 4418, products: 6 },
 };
+
+function growthFromTrends(trends, key) {
+  if (!Array.isArray(trends) || trends.length < 3) return null;
+  // The newest month can be partial. Compare the latest two completed periods.
+  const latest = number(trends.at(-2)?.[key]);
+  const previous = number(trends.at(-3)?.[key]);
+  if (!previous) return null;
+  return round(((latest - previous) / previous) * 100, 1);
+}
 
 function adaptRegions(regions) {
   const entries = Object.entries(regions || {});
@@ -162,8 +182,8 @@ function adaptProducts(products, forecasts) {
       forecast: predictedUnits,
       inventory,
       risk:
-        inventory < predictedUnits
-          ? "Opportunity"
+        inventory > 0 && inventory < predictedUnits
+          ? "Supply watch"
           : growth < 0
             ? "Watch"
             : demo.risk || "Stable",
@@ -215,7 +235,13 @@ function adaptSegments(rows) {
         score: demo?.score ?? derivedScore,
         action:
           demo?.action ||
-          "Review this segment and define a targeted next-best action.",
+          (name.toLowerCase().includes("risk")
+            ? "Prioritize retention outreach and review recent engagement decline."
+            : name.toLowerCase().includes("inactive")
+              ? "Use low-cost reactivation and suppress outreach if response remains low."
+              : name.toLowerCase().includes("high value")
+                ? "Protect retention and test relevant premium cross-sell opportunities."
+                : "Review this segment and define a targeted next-best action."),
       };
     })
     .sort((a, b) => b.value - a.value);
@@ -321,6 +347,60 @@ function adaptTransactions(rows, products) {
   });
 }
 
+function adaptAnomalies(products, regions, risks, segments) {
+  const signals = [];
+  const highestRisk = [...risks].sort((a, b) => b.risk - a.risk)[0];
+  const strongestGrowth = [...products].sort((a, b) => b.growth - a.growth)[0];
+  const weakestGrowth = [...products].sort((a, b) => a.growth - b.growth)[0];
+  const largestRegion = [...regions].sort((a, b) => b.share - a.share)[0];
+  const highestValueSegment = [...segments].sort((a, b) => b.value - a.value)[0];
+
+  if (highestRisk) {
+    signals.push({
+      level: highestRisk.risk >= 85 ? "high" : "medium",
+      title: "Customer risk concentration",
+      text: `${highestRisk.id} is the highest-priority account in the current risk ranking.`,
+      metric: `${highestRisk.risk}%`,
+    });
+  }
+
+  if (largestRegion) {
+    signals.push({
+      level: largestRegion.share >= 30 ? "medium" : "low",
+      title: "Regional concentration",
+      text: `${largestRegion.name} contributes the largest share of current portfolio revenue.`,
+      metric: `${largestRegion.share}%`,
+    });
+  }
+
+  if (weakestGrowth) {
+    signals.push({
+      level: weakestGrowth.growth <= -8 ? "high" : "medium",
+      title: "Product watch",
+      text: `${weakestGrowth.name} has the weakest recent revenue growth in the live portfolio view.`,
+      metric: `${weakestGrowth.growth > 0 ? "+" : ""}${weakestGrowth.growth}%`,
+    });
+  }
+
+  if (strongestGrowth) {
+    signals.push({
+      level: "low",
+      title: "Growth opportunity",
+      text: `${strongestGrowth.name} currently leads product growth and merits capacity review.`,
+      metric: `${strongestGrowth.growth > 0 ? "+" : ""}${strongestGrowth.growth}%`,
+    });
+  } else if (highestValueSegment) {
+    signals.push({
+      level: "low",
+      title: "Customer opportunity",
+      text: `${highestValueSegment.name} is the highest-value customer segment in the current data.`,
+      metric: `₹${highestValueSegment.value}M`,
+    });
+  }
+
+  return signals.length ? signals.slice(0, 4) : fallback.anomalies;
+}
+
 export function getFallbackCommercialData() {
   return fallbackData;
 }
@@ -331,25 +411,52 @@ export function adaptCommercialData(payload) {
     payload.appNumber !== 4 ||
     payload.schema !== "commercialiq"
   ) {
-    throw new Error("Commercial data response did not match Supabase App #4.");
+    throw new Error("Commercial data response did not match the expected application scope.");
   }
 
+  const revenueGrowth = growthFromTrends(payload.trends, "revenue");
+  const unitGrowth = growthFromTrends(payload.trends, "units");
   const kpis = {
     ...fallback.kpis,
     revenue: inMillions(payload.metrics?.revenue),
+    revenueGrowth: revenueGrowth ?? fallback.kpis.revenueGrowth,
     units: Math.round(number(payload.metrics?.units)),
+    unitGrowth: unitGrowth ?? fallback.kpis.unitGrowth,
     customers: Math.round(number(payload.metrics?.customers)),
   };
 
+  const products = adaptProducts(payload.products, payload.forecasts);
+  const regions = adaptRegions(payload.regions);
+  const segments = adaptSegments(payload.segments);
+  const riskCustomers = adaptRisks(payload.risks, payload.segments);
+
+  // Keep the polished 24-month presentation series until the synthetic Project
+  // Hub contains a full 24 months, while all primary KPIs and analytical tables
+  // use live data. This prevents a partial current month from distorting the UI.
+  const hasFullTrend = Array.isArray(payload.trends) && payload.trends.length >= 24;
+  const months = hasFullTrend
+    ? payload.trends.slice(-24).map((row) => monthLabel(row.month))
+    : fallback.months;
+  const revenueSeries = hasFullTrend
+    ? payload.trends.slice(-24).map((row) => inMillions(row.revenue))
+    : fallback.revenueSeries;
+  const demandSeries = hasFullTrend
+    ? payload.trends.slice(-24).map((row) => Math.round(number(row.units)))
+    : fallback.demandSeries;
+
   return {
     ...fallbackData,
+    months,
+    revenueSeries,
+    demandSeries,
     kpis,
-    products: adaptProducts(payload.products, payload.forecasts),
-    regions: adaptRegions(payload.regions),
-    segments: adaptSegments(payload.segments),
-    riskCustomers: adaptRisks(payload.risks, payload.segments),
+    products,
+    regions,
+    segments,
+    riskCustomers,
     forecast: adaptForecasts(payload.forecasts),
     productForecasts: adaptProductForecasts(payload.forecasts),
+    anomalies: adaptAnomalies(products, regions, riskCustomers, segments),
     documents: adaptDocuments(payload.documents),
     dataPreview: adaptTransactions(
       payload.recentTransactions,
