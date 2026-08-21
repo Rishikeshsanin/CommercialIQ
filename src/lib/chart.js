@@ -1,0 +1,2 @@
+export function linePath(values,width,height,pad=12){const min=Math.min(...values),max=Math.max(...values),span=max-min||1;return values.map((value,index)=>{const x=pad+(index/Math.max(values.length-1,1))*(width-pad*2);const y=height-pad-((value-min)/span)*(height-pad*2);return `${index===0?'M':'L'}${x.toFixed(2)},${y.toFixed(2)}`}).join(' ')}
+export function areaPath(values,width,height,pad=12){const path=linePath(values,width,height,pad),endX=width-pad,startX=pad,bottom=height-pad;return `${path} L${endX},${bottom} L${startX},${bottom} Z`}
