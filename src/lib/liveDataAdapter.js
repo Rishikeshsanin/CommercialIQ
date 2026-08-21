@@ -226,6 +226,7 @@ function adaptSegments(rows) {
           ),
         ),
       );
+      const normalizedName = segment.name.toLowerCase();
       return {
         name: segment.name,
         size: segment.size,
@@ -235,11 +236,11 @@ function adaptSegments(rows) {
         score: demo?.score ?? derivedScore,
         action:
           demo?.action ||
-          (name.toLowerCase().includes("risk")
+          (normalizedName.includes("risk")
             ? "Prioritize retention outreach and review recent engagement decline."
-            : name.toLowerCase().includes("inactive")
+            : normalizedName.includes("inactive")
               ? "Use low-cost reactivation and suppress outreach if response remains low."
-              : name.toLowerCase().includes("high value")
+              : normalizedName.includes("high value")
                 ? "Protect retention and test relevant premium cross-sell opportunities."
                 : "Review this segment and define a targeted next-best action."),
       };
