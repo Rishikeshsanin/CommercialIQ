@@ -1,4 +1,4 @@
-// CommercialIQ App #4 — read-only Project Hub data adapter.
+// CommercialIQ — read-only Project Hub data adapter.
 // Uses only the public Supabase project URL + publishable key. Never use a secret/service-role key here.
 const SUPABASE_URL =
   process.env.SUPABASE_URL || "https://nowlwprtcnieihelqjoa.supabase.co";
@@ -6,6 +6,21 @@ const SUPABASE_PUBLISHABLE_KEY =
   process.env.SUPABASE_PUBLISHABLE_KEY ||
   "sb_publishable_487zTc09VarME-Fgf6EYig__47s_JTp";
 const SCHEMA = "commercialiq";
+
+// Friendly synthetic portfolio names for the public demo. The database remains
+// unchanged; this is presentation-only naming at the read adapter boundary.
+const PRODUCT_DISPLAY_NAMES = {
+  p01: "Solvexa",
+  p02: "NovaCore",
+  p03: "Kinetra",
+  p04: "Lumena",
+  p05: "Virelix",
+  p06: "Asteron",
+  p07: "Arclune",
+  p08: "Meridian",
+  p09: "Velora",
+  p10: "Nexora",
+};
 
 function asNumber(value) {
   const n = Number(value);
@@ -110,6 +125,7 @@ export default async function handler(req, res) {
       0,
     );
     const customers = new Set(transactions.map((row) => row.customer_id)).size;
+
     const regions = transactions.reduce((acc, row) => {
       const key = row.region || "Unknown";
       const current = acc[key] || { revenue: 0, units: 0, transactions: 0 };
@@ -119,6 +135,23 @@ export default async function handler(req, res) {
       acc[key] = current;
       return acc;
     }, {});
+
+    const monthlyTotals = transactions.reduce((acc, row) => {
+      const month = String(row.transaction_date || "").slice(0, 7);
+      if (!month) return acc;
+      const current = acc[month] || { revenue: 0, units: 0, transactions: 0 };
+      current.revenue += asNumber(row.revenue);
+      current.units += asNumber(row.units);
+      current.transactions += 1;
+      acc[month] = current;
+      return acc;
+    }, {});
+
+    const trends = Object.entries(monthlyTotals)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-24)
+      .map(([month, metrics]) => ({ month, ...metrics }));
+
     const productMetrics = transactions.reduce((acc, row) => {
       const key = row.product_id;
       const current = acc[key] || {
@@ -131,6 +164,8 @@ export default async function handler(req, res) {
       current.revenue += asNumber(row.revenue);
       current.units += asNumber(row.units);
       current.transactions += 1;
+      // Transactions are read newest-first, so the first inventory value seen for
+      // a product is the most recent inventory snapshot available in demo data.
       if (current.inventory === null && row.inventory !== null)
         current.inventory = asNumber(row.inventory);
       const month = String(row.transaction_date || "").slice(0, 7);
@@ -140,6 +175,7 @@ export default async function handler(req, res) {
       acc[key] = current;
       return acc;
     }, {});
+
     const productsWithMetrics = products.map((product) => {
       const aggregate = productMetrics[product.product_id] || {
         revenue: 0,
@@ -156,6 +192,8 @@ export default async function handler(req, res) {
         : 0;
       return {
         ...product,
+        product_name:
+          PRODUCT_DISPLAY_NAMES[product.product_id] || product.product_name,
         revenue: aggregate.revenue,
         units: aggregate.units,
         transactions: aggregate.transactions,
@@ -179,6 +217,7 @@ export default async function handler(req, res) {
         riskPredictions: risks.length,
         documents: documents.length,
       },
+      trends,
       regions,
       products: productsWithMetrics,
       segments,
